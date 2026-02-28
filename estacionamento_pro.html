@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estacionamento PRO</title>
+
+<style>
+body{font-family:Arial;background:#f1f5f9;margin:0}
+header{background:#0f172a;color:white;padding:15px 20px;display:flex;align-items:center;justify-content:space-between}
+header h1{margin:0;font-size:20px}
+.container{max-width:1200px;margin:auto;padding:20px}
+.card{background:white;padding:20px;margin-bottom:20px;border-radius:14px;box-shadow:0 4px 15px rgba(0,0,0,.08)}
+input,select,button{padding:8px;border-radius:8px;border:1px solid #ccc;margin:5px}
+button{background:#2563eb;color:white;border:none;cursor:pointer}
+button:hover{opacity:.9}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px;text-align:center;border-bottom:1px solid #eee;font-size:13px}
+th{background:#f8fafc;font-weight:bold}
+.summary{display:flex;flex-wrap:wrap;gap:10px}
+.summary div{background:#e2e8f0;padding:10px 15px;border-radius:8px;font-size:14px}
+.login{max-width:350px;margin:100px auto;background:white;padding:30px;border-radius:15px;box-shadow:0 5px 20px rgba(0,0,0,.1);text-align:center}
+.login h2{margin-bottom:20px;color:#0f172a}
+.login input{width:80%;display:block;margin:8px auto}
+.login button{width:85%;padding:12px;font-size:16px;margin-top:10px}
+.hidden{display:none}
+video{width:100%;max-width:350px;border-radius:10px;margin-top:10px}
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:999}
+.modal.ativo{display:flex}
+.modal-content{background:white;padding:25px;border-radius:14px;width:90%;max-width:400px;text-align:center}
+.pagamentos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:15px}
+.btn-pagamento{padding:15px;font-size:16px;font-weight:bold;border:none;border-radius:8px;cursor:pointer;color:white}
+.btn-din{background:#2e7d32}
+.btn-pix{background:#1565c0}
+.btn-cre{background:#6a1b9a}
+.btn-deb{background:#ef6c00}
+.pago{background:#d1fae5}
+img.thumb{width:70px;border-radius:6px}
+.badge{display:inline-block;background:#f59e0b;color:white;border-radius:20px;padding:2px 10px;font-size:12px;margin-left:8px}
+.btn-sair{background:#dc2626;padding:6px 12px;font-size:13px}
+.btn-camera{background:#0891b2}
+.btn-capturar{background:#059669}
+.btn-registrar{background:#16a34a}
+.btn-imprimir{background:#7c3aed}
+.btn-fechar-caixa{background:#dc2626}
+img.snap-preview{width:100%;max-width:250px;border-radius:8px;margin-top:8px;border:2px solid #e2e8f0}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="login">
+  <h2>🅿️ Estacionamento PRO</h2>
+  <input type="text" id="user" placeholder="Usuário">
+  <input type="password" id="pass" placeholder="Senha">
+  <button onclick="login()">Entrar</button>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+
+<header>
+  <h1>🅿️ Estacionamento PRO</h1>
+  <div>
+    <span id="nomeOperador" style="font-size:13px;margin-right:8px"></span>
+    <button class="btn-sair" onclick="sairSistema()">Sair</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ENTRADA -->
+  <div class="card">
+    <h3>Registrar Entrada</h3>
+    <input type="text" id="placaInput" placeholder="Ex: ABC1234" maxlength="7" style="width:160px">
+    <button class="btn-camera" onclick="toggleCamera()">📷 Câmera</button>
+    <br>
+    <video id="video" class="hidden" autoplay playsinline></video>
+    <br>
+    <button id="btnCapturar" class="btn-capturar hidden" onclick="capturarFoto()">📸 Capturar Foto</button>
+    <canvas id="canvasCaptura" class="hidden"></canvas>
+    <br>
+    <img id="previewFoto" class="snap-preview hidden" alt="Foto da placa">
+    <br>
+    <select id="tipoCobranca">
+      <option value="hora">Por Hora</option>
+      <option value="40">Diária R$ 40</option>
+      <option value="30">Diária R$ 30</option>
+      <option value="20">Diária R$ 20</option>
+      <option value="15">Diária R$ 15</option>
+    </select>
+    <button class="btn-registrar" onclick="registrarEntrada()">✅ Registrar</button>
+  </div>
+
+  <!-- PÁTIO -->
+  <div class="card">
+    <h3>Veículos no Pátio <span class="badge" id="qtdPatio">0</span></h3>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Placa</th><th>Entrada</th><th>Tempo</th><th>Valor</th><th>Ação</th></tr></thead>
+        <tbody id="patio"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- HISTÓRICO -->
+  <div class="card">
+    <h3>Histórico do Dia</h3>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Foto</th><th>Placa</th><th>Entrada</th><th>Saída</th><th>Tempo</th><th>Valor</th><th>Pagamento</th><th>Operador</th></tr></thead>
+        <tbody id="historicoTabela"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- RESUMO -->
+  <div class="card">
+    <h3>Resumo do Dia</h3>
+    <div class="summary">
+      <div>💰 Total: <strong>R$ <span id="totalGeral">0,00</span></strong></div>
+      <div>💵 Dinheiro: R$ <span id="spanDinheiro">0,00</span></div>
+      <div>📱 Pix: R$ <span id="spanPix">0,00</span></div>
+      <div>💳 Crédito: R$ <span id="spanCredito">0,00</span></div>
+      <div>💳 Débito: R$ <span id="spanDebito">0,00</span></div>
+      <div>🚗 Veículos: <span id="qtd">0</span></div>
+    </div>
+    <br>
+    <button class="btn-imprimir" onclick="imprimirFechamento()">🖨️ Imprimir / Salvar PDF</button>
+    <button class="btn-fechar-caixa" onclick="fecharCaixa()">🔒 Fechar Caixa</button>
+  </div>
+
+</div>
+</div>
+
+<!-- Modal Tarifa -->
+<div id="modalTarifa" class="modal">
+  <div class="modal-content">
+    <h3>Confirmar Tarifa</h3>
+    <p id="textoTarifa" style="font-size:16px;margin:15px 0"></p>
+    <button onclick="confirmarTarifa()" style="background:#16a34a">✅ Confirmar</button>
+    <button onclick="fecharModalTarifa()" style="background:#6b7280">Cancelar</button>
+  </div>
+</div>
+
+<!-- Modal Pagamento -->
+<div id="modalPagamento" class="modal">
+  <div class="modal-content">
+    <h3>Forma de Pagamento</h3>
+    <p id="placaModal" style="font-size:14px;color:#64748b;margin:5px 0"></p>
+    <p id="valorModal" style="font-size:28px;font-weight:bold;margin:10px 0;color:#0f172a"></p>
+    <div class="pagamentos">
+      <button class="btn-pagamento btn-din" onclick="finalizarPagamento('Dinheiro')">💵 Dinheiro</button>
+      <button class="btn-pagamento btn-pix" onclick="finalizarPagamento('Pix')">📱 Pix</button>
+      <button class="btn-pagamento btn-cre" onclick="finalizarPagamento('Crédito')">💳 Crédito</button>
+      <button class="btn-pagamento btn-deb" onclick="finalizarPagamento('Débito')">💳 Débito</button>
+    </div>
+    <br>
+    <button onclick="fecharModal()" style="background:#6b7280;margin-top:5px">Cancelar</button>
+  </div>
+</div>
+
+<script>
+/* ===== CONFIG ===== */
+const operadores = { admin:"1234", joao:"1111", maria:"2222" };
+let operadorAtual = "";
+let patio = [];
+let historico = [];
+let indiceAtual = null;
+let valorAtual = 0;
+let tipoPagamentoAtual = null;
+let cameraStream = null;
+let cameraAberta = false;
+let fotoPlacaTemp = null;
+let dadosEntradaTemp = null;
+
+// Carrega dados salvos com segurança
+try { patio = JSON.parse(localStorage.getItem("patioPro")) || []; } catch(e){ patio = []; }
+try { historico = JSON.parse(localStorage.getItem("historicoPro")) || []; } catch(e){ historico = []; }
+
+// Atualiza tabela a cada minuto
+setInterval(atualizarTabela, 60000);
+
+/* ===== PLACA ===== */
+const regexAntiga = /^[A-Z]{3}[0-9]{4}$/;
+const regexMercosul = /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/;
+
+document.getElementById("placaInput").addEventListener("input", function(){
+  this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+});
+
+document.getElementById("pass").addEventListener("keydown", function(e){
+  if(e.key === "Enter") login();
+});
+
+function validarPlaca(p){
+  return regexAntiga.test(p) || regexMercosul.test(p);
+}
+
+/* ===== LOGIN ===== */
+function login(){
+  let usuario = document.getElementById("user").value.trim();
+  let senha = document.getElementById("pass").value;
+  if(operadores[usuario] && operadores[usuario] === senha){
+    operadorAtual = usuario;
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("app").classList.remove("hidden");
+    document.getElementById("nomeOperador").innerText = "👤 " + usuario;
+    atualizarTudo();
+  } else {
+    alert("Usuário ou senha incorretos!");
+  }
+}
+
+function sairSistema(){
+  if(confirm("Deseja sair?")){
+    operadorAtual = "";
+    document.getElementById("loginScreen").style.display = "";
+    document.getElementById("app").classList.add("hidden");
+    document.getElementById("user").value = "";
+    document.getElementById("pass").value = "";
+  }
+}
+
+/* ===== CÂMERA ===== */
+async function toggleCamera(){
+  if(cameraAberta){ fecharCamera(); return; }
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:{ ideal:"environment" }, width:{ideal:1280}, height:{ideal:720} }
+    });
+    const video = document.getElementById("video");
+    video.srcObject = cameraStream;
+    await video.play();
+    video.classList.remove("hidden");
+    document.getElementById("btnCapturar").classList.remove("hidden");
+    cameraAberta = true;
+  } catch(e) {
+    alert("Não foi possível acessar a câmera. Verifique as permissões do navegador.");
+  }
+}
+
+function fecharCamera(){
+  if(cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+  document.getElementById("video").classList.add("hidden");
+  document.getElementById("btnCapturar").classList.add("hidden");
+  cameraAberta = false;
+}
+
+function capturarFoto(){
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvasCaptura");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+  fotoPlacaTemp = canvas.toDataURL("image/jpeg", 0.8);
+  const preview = document.getElementById("previewFoto");
+  preview.src = fotoPlacaTemp;
+  preview.classList.remove("hidden");
+  fecharCamera();
+  alert("Foto capturada! Agora digite a placa no campo de texto.");
+}
+
+/* ===== ENTRADA ===== */
+function registrarEntrada(){
+  let placa = document.getElementById("placaInput").value.trim();
+  if(!validarPlaca(placa)){
+    alert("Placa inválida!\nFormatos aceitos: ABC1234 ou ABC1D23");
+    return;
+  }
+  if(patio.some(v => v.placa === placa)){
+    alert("Este veículo já está no pátio!");
+    return;
+  }
+  let tipo = document.getElementById("tipoCobranca").value;
+  let texto = tipo === "hora"
+    ? "Cobrança por HORA — valor calculado na saída"
+    : "Cobrança DIÁRIA fixa de R$ " + tipo;
+  document.getElementById("textoTarifa").innerText = texto;
+  dadosEntradaTemp = { placa, tipo, foto: fotoPlacaTemp || null };
+  document.getElementById("modalTarifa").classList.add("ativo");
+}
+
+function confirmarTarifa(){
+  patio.push({
+    placa: dadosEntradaTemp.placa,
+    entrada: new Date().toISOString(),
+    tipo: dadosEntradaTemp.tipo,
+    pago: false,
+    foto: dadosEntradaTemp.foto
+  });
+  document.getElementById("placaInput").value = "";
+  document.getElementById("previewFoto").classList.add("hidden");
+  fotoPlacaTemp = null;
+  dadosEntradaTemp = null;
+  salvar();
+  atualizarTudo();
+  fecharModalTarifa();
+}
+
+function fecharModalTarifa(){
+  document.getElementById("modalTarifa").classList.remove("ativo");
+}
+
+/* ===== FINANCEIRO ===== */
+function calcularValor(min){
+  if(min <= 20) return 0;
+  if(min <= 60) return 20;
+  if(min <= 120) return 30;
+  return 40;
+}
+
+function abrirModal(i, valor, tipo){
+  indiceAtual = i;
+  valorAtual = valor;
+  tipoPagamentoAtual = tipo;
+  document.getElementById("valorModal").innerText = "R$ " + valor.toFixed(2);
+  document.getElementById("placaModal").innerText = "Placa: " + patio[i].placa;
+  document.getElementById("modalPagamento").classList.add("ativo");
+}
+
+function fecharModal(){
+  document.getElementById("modalPagamento").classList.remove("ativo");
+}
+
+function finalizarPagamento(forma){
+  let v = patio[indiceAtual];
+  v.valor = valorAtual;
+  v.pagamento = forma;
+  v.pago = true;
+  v.operador = operadorAtual;
+  if(tipoPagamentoAtual === "saida"){
+    v.saida = new Date().toISOString();
+    historico.push({...v});
+    patio.splice(indiceAtual, 1);
+  }
+  salvar();
+  fecharModal();
+  atualizarTudo();
+}
+
+function darSaida(i){
+  if(!confirm("Confirmar saída de " + patio[i].placa + "?")) return;
+  let v = patio[i];
+  v.saida = new Date().toISOString();
+  v.operador = operadorAtual;
+  if(!v.valor) v.valor = 0;
+  if(!v.pagamento) v.pagamento = "—";
+  historico.push({...v});
+  patio.splice(i, 1);
+  salvar();
+  atualizarTudo();
+}
+
+/* ===== TABELAS ===== */
+function atualizarTudo(){
+  atualizarTabela();
+  atualizarHistorico();
+  atualizarResumo();
+}
+
+function tempoStr(min){
+  let h = Math.floor(min/60), m = min%60;
+  return h > 0 ? h+"h "+m+"min" : m+"min";
+}
+
+function atualizarTabela(){
+  let tbody = document.getElementById("patio");
+  tbody.innerHTML = "";
+  document.getElementById("qtdPatio").innerText = patio.length;
+  if(patio.length === 0){
+    tbody.innerHTML = `<tr><td colspan="5" style="color:#94a3b8;padding:20px">Nenhum veículo no pátio</td></tr>`;
+    return;
+  }
+  patio.forEach((v, i) => {
+    let min = Math.floor((new Date() - new Date(v.entrada)) / 60000);
+    let valor = v.tipo === "hora" ? calcularValor(min) : parseInt(v.tipo);
+    let hora = new Date(v.entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    tbody.innerHTML += `
+    <tr class="${v.pago?'pago':''}">
+      <td><strong>${v.placa}</strong></td>
+      <td>${hora}</td>
+      <td>${tempoStr(min)}</td>
+      <td><strong>R$ ${valor.toFixed(2)}</strong></td>
+      <td>
+        ${v.pago
+          ? `<button onclick="darSaida(${i})" style="background:#dc2626">🚪 Saída</button>`
+          : `<button onclick="abrirModal(${i},${valor},'saida')" style="background:#16a34a">💰 Cobrar</button>
+             <button onclick="abrirModal(${i},${valor},'entrada')" style="background:#d97706;font-size:11px">Pagar Entrada</button>`
+        }
+      </td>
+    </tr>`;
+  });
+}
+
+function atualizarHistorico(){
+  let tbody = document.getElementById("historicoTabela");
+  tbody.innerHTML = "";
+  if(historico.length === 0){
+    tbody.innerHTML = `<tr><td colspan="8" style="color:#94a3b8;padding:20px">Nenhum registro ainda</td></tr>`;
+    return;
+  }
+  [...historico].reverse().forEach(v => {
+    let min = v.saida ? Math.floor((new Date(v.saida) - new Date(v.entrada)) / 60000) : 0;
+    let entrada = new Date(v.entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    let saida = v.saida ? new Date(v.saida).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : "—";
+    tbody.innerHTML += `
+    <tr>
+      <td>${v.foto ? `<img src="${v.foto}" class="thumb">` : "—"}</td>
+      <td><strong>${v.placa}</strong></td>
+      <td>${entrada}</td>
+      <td>${saida}</td>
+      <td>${tempoStr(min)}</td>
+      <td><strong>R$ ${(v.valor||0).toFixed(2)}</strong></td>
+      <td>${v.pagamento||"—"}</td>
+      <td>${v.operador||"—"}</td>
+    </tr>`;
+  });
+}
+
+function atualizarResumo(){
+  let total=0, d=0, p=0, c=0, db=0;
+  historico.forEach(v => {
+    let val = v.valor || 0;
+    total += val;
+    if(v.pagamento === "Dinheiro") d += val;
+    if(v.pagamento === "Pix") p += val;
+    if(v.pagamento === "Crédito") c += val;
+    if(v.pagamento === "Débito") db += val;
+  });
+  document.getElementById("totalGeral").innerText = total.toFixed(2);
+  document.getElementById("spanDinheiro").innerText = d.toFixed(2);
+  document.getElementById("spanPix").innerText = p.toFixed(2);
+  document.getElementById("spanCredito").innerText = c.toFixed(2);
+  document.getElementById("spanDebito").innerText = db.toFixed(2);
+  document.getElementById("qtd").innerText = historico.length;
+}
+
+function salvar(){
+  try {
+    localStorage.setItem("patioPro", JSON.stringify(patio));
+    localStorage.setItem("historicoPro", JSON.stringify(historico));
+  } catch(e){ console.warn("Erro ao salvar:", e); }
+}
+
+/* ===== IMPRESSÃO / PDF ===== */
+function imprimirFechamento(){
+  if(historico.length === 0){ alert("Sem dados para imprimir."); return; }
+  let total=0, d=0, p=0, c=0, db=0;
+  historico.forEach(v => {
+    let val = v.valor||0; total+=val;
+    if(v.pagamento==="Dinheiro") d+=val;
+    if(v.pagamento==="Pix") p+=val;
+    if(v.pagamento==="Crédito") c+=val;
+    if(v.pagamento==="Débito") db+=val;
+  });
+  let linhas = historico.map((v,i) => {
+    let min = v.saida ? Math.floor((new Date(v.saida)-new Date(v.entrada))/60000) : 0;
+    let entrada = new Date(v.entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    let saida = v.saida ? new Date(v.saida).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : "—";
+    return `<tr><td>${i+1}</td><td>${v.placa}</td><td>${entrada}</td><td>${saida}</td><td>${tempoStr(min)}</td><td>R$ ${(v.valor||0).toFixed(2)}</td><td>${v.pagamento||"—"}</td><td>${v.operador||"—"}</td></tr>`;
+  }).join("");
+  let janela = window.open('','_blank');
+  janela.document.write(`
+  <!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Fechamento - Estacionamento PRO</title>
+  <style>
+    body{font-family:Arial;margin:20px;font-size:13px}
+    h2{text-align:center;color:#0f172a}
+    .resumo{display:flex;gap:12px;flex-wrap:wrap;margin:15px 0}
+    .resumo div{border:1px solid #ccc;padding:8px 14px;border-radius:8px}
+    .total{font-size:18px;font-weight:bold;color:#16a34a;border-color:#16a34a}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border:1px solid #ccc;padding:6px 8px;text-align:center}
+    th{background:#f1f5f9}
+    p{margin:4px 0}
+  </style>
+  </head><body>
+  <h2>🅿️ FECHAMENTO DE CAIXA — Estacionamento PRO</h2>
+  <p><strong>Operador:</strong> ${operadorAtual} &nbsp; <strong>Data:</strong> ${new Date().toLocaleString('pt-BR')} &nbsp; <strong>Veículos:</strong> ${historico.length}</p>
+  <div class="resumo">
+    <div class="total">💰 Total: R$ ${total.toFixed(2)}</div>
+    <div>💵 Dinheiro: R$ ${d.toFixed(2)}</div>
+    <div>📱 Pix: R$ ${p.toFixed(2)}</div>
+    <div>💳 Crédito: R$ ${c.toFixed(2)}</div>
+    <div>💳 Débito: R$ ${db.toFixed(2)}</div>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>Placa</th><th>Entrada</th><th>Saída</th><th>Tempo</th><th>Valor</th><th>Pagamento</th><th>Operador</th></tr></thead>
+    <tbody>${linhas}</tbody>
+  </table>
+  </body></html>`);
+  janela.document.close();
+  setTimeout(() => { janela.focus(); janela.print(); }, 500);
+}
+
+/* ===== FECHAR CAIXA ===== */
+function fecharCaixa(){
+  if(!confirm("Fechar o caixa? O histórico do dia será apagado.")) return;
+  patio = []; historico = [];
+  salvar();
+  atualizarTudo();
+  alert("✅ Caixa fechado com sucesso!");
+}
+</script>
+</body>
+</html>
